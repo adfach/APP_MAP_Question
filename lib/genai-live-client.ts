@@ -75,6 +75,7 @@ export interface LiveClientEventTypes {
 // FIX: Refactored to use composition over inheritance for EventEmitter to resolve method resolution issues.
 export class GenAILiveClient {
   public readonly model: string = DEFAULT_LIVE_API_MODEL;
+  private _apiKey: string; // Store the API key
 
   // FIX: Use an internal EventEmitter instance
   private emitter = new EventEmitter<LiveClientEventTypes>();
@@ -83,7 +84,6 @@ export class GenAILiveClient {
   public on = this.emitter.on.bind(this.emitter);
   public off = this.emitter.off.bind(this.emitter);
 
-  protected readonly client: GoogleGenAI;
   protected session?: Session;
 
   private _status: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
@@ -98,10 +98,8 @@ export class GenAILiveClient {
    */
   constructor(apiKey: string, model?: string) {
     if (model) this.model = model;
+    this._apiKey = apiKey; // Store the API key
 
-    this.client = new GoogleGenAI({
-      apiKey: apiKey,
-    });
   }
 
   public async connect(config: LiveConnectConfig): Promise<boolean> {
@@ -119,7 +117,9 @@ export class GenAILiveClient {
     };
 
     try {
-      this.session = await this.client.live.connect({
+      // Create GoogleGenAI instance right before connecting to ensure it uses the latest API key.
+      const genaiClient = new GoogleGenAI({ apiKey: this._apiKey });
+      this.session = await genaiClient.live.connect({
         model: this.model,
         config: {
           ...config,

@@ -31,12 +31,8 @@ import { Map3D, Map3DCameraProps} from './components/map-3d';
 import { useMapStore } from './lib/state';
 import { MapController } from './lib/map-controller';
 
-const API_KEY = process.env.GEMINI_API_KEY as string;
-if (typeof API_KEY !== 'string') {
-  throw new Error(
-    'Missing required environment variable: GEMINI_API_KEY'
-  );
-}
+// Function to safely get API key from environment, with a default if not found
+const getApiKey = () => (process.env.API_KEY as string | undefined) || '';
 
 const INITIAL_VIEW_PROPS = {
   center: {
@@ -49,6 +45,12 @@ const INITIAL_VIEW_PROPS = {
   tilt: 30,
   roll: 0
 };
+
+// FIX: Export ApiKeyContext as a named export
+export const ApiKeyContext = React.createContext({
+  currentApiKey: '',
+  reselectApiKey: () => {}, // Add reselectApiKey to context
+});
 
 /**
  * The main application component. It serves as the primary view controller,
@@ -74,6 +76,9 @@ function AppComponent() {
   const controlTrayRef = useRef<HTMLElement>(null);
   // Padding state is used to ensure map content isn't hidden by UI elements.
   const [padding, setPadding] = useState<[number, number, number, number]>([0.05, 0.05, 0.05, 0.05]);
+
+  // Consume the API key and reselect function from context
+  const { currentApiKey, reselectApiKey } = React.useContext(ApiKeyContext);
 
   // Effect: Instantiate the Geocoder once the library is loaded.
   useEffect(() => {
@@ -162,6 +167,29 @@ function AppComponent() {
     }
   }, [map]);
 
+  // Effect to detect if the map fails to load within a timeout
+  useEffect(() => {
+    let timeoutId: number | undefined;
+
+    if (currentApiKey && !map) {
+      console.log('Starting map initialization timeout...');
+      // Set a timeout to assume map loading failed if `map` is still null after some time
+      timeoutId = window.setTimeout(() => {
+        console.error('Google Maps 3D component failed to initialize after 10 seconds. Triggering API key re-selection.');
+        reselectApiKey(); // Trigger re-selection of API key
+      }, 10000); // 10 seconds timeout
+    } else if (map && timeoutId) {
+      console.log('Map initialized, clearing timeout.');
+      window.clearTimeout(timeoutId); // Clear timeout if map loads successfully
+    }
+
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [currentApiKey, map, reselectApiKey]);
+
 
   // Effect: Reactively render markers and routes on the map.
   // This is the core of the component's "reactive" nature. It listens for
@@ -211,7 +239,7 @@ function AppComponent() {
 
   return (
     <LiveAPIProvider 
-      apiKey={API_KEY} 
+      apiKey={currentApiKey} 
       map={map} 
       placesLib={placesLib}
       elevationLib={elevationLib}
@@ -244,15 +272,70 @@ function AppComponent() {
  * Manages video streaming state and provides controls for webcam/screen capture.
  */
 function App() {
+  const [currentApiKey, setCurrentApiKey] = useState('');
+  const [showKeySelectionPrompt, setShowKeySelectionPrompt] = useState(false);
+
+  useEffect(() => {
+    const checkInitialApiKey = async () => {
+      const keyFromEnv = getApiKey();
+      console.log('Initial process.env.API_KEY:', keyFromEnv);
+      if (!keyFromEnv || !(await window.aistudio.hasSelectedApiKey())) {
+        setShowKeySelectionPrompt(true);
+      } else {
+        setCurrentApiKey(keyFromEnv);
+        setShowKeySelectionPrompt(false);
+      }
+    };
+    checkInitialApiKey();
+  }, []); // Run once on mount
+
+  const handleSelectKey = async () => {
+    await window.aistudio.openSelectKey();
+    const updatedKey = getApiKey();
+    console.log('API Key selected via dialog, new process.env.API_KEY:', updatedKey);
+    setCurrentApiKey(updatedKey);
+    setShowKeySelectionPrompt(false); // Assume successful selection and hide prompt
+  };
+
+  const reselectApiKey = useCallback(() => {
+    console.log('Reselecting API key...');
+    setCurrentApiKey(''); // Clear current key to force prompt
+    setShowKeySelectionPrompt(true);
+  }, []);
+
+  if (showKeySelectionPrompt || !currentApiKey) {
+    return (
+      <div className="api-key-prompt-screen">
+        <div style={{ fontSize: 48 }}>🔑</div>
+        <div className="message">
+          Please select a valid Google Cloud API key for the Google Maps Platform APIs and Gemini API.
+        </div>
+        <button className="select-key-button" onClick={handleSelectKey}>
+          Select API Key
+        </button>
+        <div className="docs-link">
+          Need a key? See{' '}
+          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer">
+            billing documentation
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('Rendering App with currentApiKey:', currentApiKey ? '*****' + currentApiKey.slice(-4) : 'none');
   return (
     <div className="App">
-    <APIProvider
-                version={'alpha'}
-                apiKey={'AIzaSyCYTvt7YMcKjSNTnBa42djlndCeDvZHkr0'}
-                solutionChannel={"gmp_aistudio_itineraryapplet_v1.0.0"}>  
-      <AppComponent />
-    </APIProvider>
-
+      <ApiKeyContext.Provider value={{ currentApiKey, reselectApiKey }}>
+        <APIProvider
+          key={currentApiKey}
+          version={'alpha'}
+          apiKey={currentApiKey} // Use the state variable
+          solutionChannel={"gmp_aistudio_itineraryapplet_v1.0.0"}
+        >  
+          <AppComponent />
+        </APIProvider>
+      </ApiKeyContext.Provider>
     </div>
   );
 }

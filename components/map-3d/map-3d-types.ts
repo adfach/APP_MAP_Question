@@ -22,13 +22,14 @@
 
 /* eslint-disable @typescript-eslint/no-namespace, @typescript-eslint/no-explicit-any */
 
+// FIX: Explicitly import the module for augmentation to ensure it's found.
+import '@vis.gl/react-google-maps';
 // FIX: Using a full React import to ensure this file is treated as a module,
 // which is required for module augmentation to work correctly.
 // Also updated to use `import * as React` for more robust module resolution.
-import * as React from 'react';
-// FIX: Adding a redundant import for @vis.gl/react-google-maps to help TypeScript resolve the module for augmentation.
-// Also updated to use `import * as` for more robust module resolution.
-import * as VisGlReactGoogleMaps from '@vis.gl/react-google-maps';
+// FIX: Changed to a type-only import to resolve module augmentation issues.
+import type * as React from 'react';
+// FIX: Removed redundant import for @vis.gl/react-google-maps as its purpose is now covered by the empty import.
 
 // add an overload signature for the useMapsLibrary hook, so typescript
 // knows what the 'maps3d' library is.
@@ -250,4 +251,3 @@ type CustomElement<TElem, TAttr> = Partial<
 
 // FIX: Explicitly mark this file as a module to ensure module augmentations are applied correctly.
 export {};
-    

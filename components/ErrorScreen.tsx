@@ -4,6 +4,7 @@
 */
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
 import React, { useEffect, useState } from 'react';
+import { ApiKeyContext } from '../App'; // Import ApiKeyContext from App.tsx
 
 export interface ExtendedErrorType {
   code?: number;
@@ -13,12 +14,19 @@ export interface ExtendedErrorType {
 
 export default function ErrorScreen() {
   const { client } = useLiveAPIContext();
+  const { reselectApiKey } = React.useContext(ApiKeyContext); // Consume reselectApiKey
   const [error, setError] = useState<{ message?: string } | null>(null);
 
   useEffect(() => {
     function onError(error: ErrorEvent) {
       console.error(error);
       setError(error);
+
+      // Check for the specific error message to re-prompt for API key selection
+      if (error?.message?.includes('Requested entity was not found.')) {
+        // This is a Gemini Live API specific error indicating an invalid key after selection
+        reselectApiKey();
+      }
     }
 
     client.on('error', onError);
@@ -26,7 +34,7 @@ export default function ErrorScreen() {
     return () => {
       client.off('error', onError);
     };
-  }, [client]);
+  }, [client, reselectApiKey]); // Add reselectApiKey to dependencies
 
   const quotaErrorMessage =
     'Gemini Live API in AI Studio has a limited free quota each day. Come back tomorrow to continue.';
