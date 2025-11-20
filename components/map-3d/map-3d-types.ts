@@ -1,3 +1,4 @@
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -23,9 +24,11 @@
 
 // FIX: Using a full React import to ensure this file is treated as a module,
 // which is required for module augmentation to work correctly.
-import React from 'react';
+// Also updated to use `import * as React` for more robust module resolution.
+import * as React from 'react';
 // FIX: Adding a redundant import for @vis.gl/react-google-maps to help TypeScript resolve the module for augmentation.
-import '@vis.gl/react-google-maps';
+// Also updated to use `import * as` for more robust module resolution.
+import * as VisGlReactGoogleMaps from '@vis.gl/react-google-maps';
 
 // add an overload signature for the useMapsLibrary hook, so typescript
 // knows what the 'maps3d' library is.
@@ -236,6 +239,7 @@ declare module 'react' {
 type CustomElement<TElem, TAttr> = Partial<
   TAttr &
     // FIX: React is imported and available in scope; fully qualifying the type names for clarity.
+    // Updated to use `React.DOMAttributes` and `React.RefAttributes` after changing import to `import * as React`.
     React.DOMAttributes<TElem> &
     React.RefAttributes<TElem> & {
       // for whatever reason, anything else doesn't work as children
@@ -246,3 +250,4 @@ type CustomElement<TElem, TAttr> = Partial<
 
 // FIX: Explicitly mark this file as a module to ensure module augmentations are applied correctly.
 export {};
+    
